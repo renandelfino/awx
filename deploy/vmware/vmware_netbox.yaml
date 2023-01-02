@@ -1,0 +1,163 @@
+---
+- name: AWX Deploy VM & NetBox
+  hosts: localhost
+  connection: local
+  gather_facts: no
+  collections:
+    - netbox.netbox
+  vars_files:
+    - ./vars/labvars.yaml
+  tasks:
+
+
+    ### AlmaLinux Templates
+    - name: Set NB Platform var dependent on template chosen
+      set_fact:
+          host_plat: "AlmaLinux"
+      when: host_template == "Template - Almalinux 9.0"
+
+    ### Ubuntu Templates
+    - name: Set NB Platform var dependent on template chosen
+      set_fact:
+          host_plat: "Ubuntu"
+      when: host_template == "Template - Ubuntu 22.04"
+
+    ### Windows Templates
+    - name: Set NB Platform var dependent on template chosen
+      set_fact:
+          host_plat: "Windows Server 2019"
+      when: host_template == "Template - Server 2019 STD"
+
+    - name: Set NB Platform var dependent on template chosen
+      set_fact:
+          host_plat: "Windows Server 2016"
+      when: host_template == "Template - Server 2016 DC (BR)"
+
+    ### Criar VM no NetBox
+    - name: NB Task 1 - Create a new NetBox VM entry
+      netbox_virtual_machine:
+        netbox_url: "{{ nb_url }}"
+        netbox_token: "{{ nb_token }}"
+        validate_certs: False
+        data:
+          name: "{{ host_hostname }}"
+          site: "{{ host_site }}"
+          tenant: "{{ ten }}"
+          cluster: "{{ cluster_name }}"
+          disk: "{{ host_disk_size }}"
+          vcpus: "{{ host_cpus }}"
+          memory: "{{ host_memory }}"
+          platform: "{{ host_plat }}"
+          status: Active
+        state: present
+
+    - name: NB Task 2 - Create an Interface for NetBox VM entry
+      netbox_vm_interface:
+        netbox_url: "{{ nb_url }}"
+        netbox_token: "{{ nb_token }}"
+        validate_certs: False
+        data:
+          name: "Network adapter 1"
+          untagged_vlan: "{{ host_network }}"
+          virtual_machine: "{{ host_hostname }}"
+          mode: Access
+          enabled: yes
+        state: present
+
+    - name: NB Task 3 - Get new IP address, assign to VM interface, then create NB entry
+      netbox_ip_address:
+        netbox_url: "{{ nb_url }}"
+        netbox_token: "{{ nb_token }}"
+        validate_certs: False
+        data:
+          prefix: "177.72.160.0/22"
+          description: "{{ host_hostname }}"
+          assigned_object:
+            name: "Network adapter 1"
+            virtual_machine: "{{ host_hostname }}"
+        state: new
+      register: ip
+
+    - name: IP Task 1 - Copy new IP address to file
+      local_action:
+        module: copy
+        content: "{{ ip.ip_address.address }}"
+        dest: "{{ ipaddrtxt }}"
+
+    - name: IP Task 2 - Copy prefix IP address to file
+      local_action:
+        module: copy
+        content: "{{ ip.ip_address.prefix }}"
+        dest: "{{ ipaddrprefixtxt }}"
+
+    - name: IP Task 3 - Replace /x netmask to decimal netmask
+      replace:
+        path: "{{ ipaddrtxt }}"
+        regexp: \/(22)
+        replace: '255.255.252.0'
+
+        path: "{{ ipaddrtxt }}"
+        regexp: \/(26)
+        replace: '255.255.255.192'
+
+        path: "{{ ipaddrtxt }}"
+        regexp: \/(27)
+        replace: '255.255.255.224'
+
+        path: "{{ ipaddrtxt }}"
+        regexp: \/(28)
+        replace: '255.255.255.240'
+        
+        path: "{{ ipaddrtxt }}"
+        regexp: \/(29)
+        replace: '255.255.255.248'
+
+    - name: IP Task 3 - Create var from the ippaddr.txt file
+      set_fact:
+        ipaddr: "{{ lookup('file', '{{ ipaddrtxt }}') | regex_replace('\/\N+$','') }}"
+        netmask: "{{ lookup('file', '{{ ipaddrtxt }}') | regex_replace('/^(.*[\\\/])/','') }}"
+        gateway: ""
+
+
+    - name: Create a virtual machine from a template
+      vmware_guest:
+        hostname: "{{ vcsa_hostname }}"
+        cluster: "{{ cluster_name }}"
+        username: "{{ username }}"
+        password: "{{ password }}"
+        datacenter: "{{ datacenter }}"
+        validate_certs: no
+        folder: "{{ vcsa_folder }}"
+        name: "{{ host_hostname }}"
+        state: poweredon
+        template: "{{ host_template }}"
+        disk:
+        - size_gb: "{{ host_disk_size }}"
+          autoselect_datastore: yes
+        convert: "{{ host_disk_type }}"
+
+        hardware:
+          memory_mb: "{{ host_memory }}"
+          num_cpus: "{{ host_cpus }}"
+          num_cpu_cores_per_socket: "{{ host_cores }}"
+          scsi: lsilogicsas
+          memory_reservation_lock: False
+          mem_reservation: 2048
+          hotadd_cpu: False
+          hotremove_cpu: False
+          hotadd_memory: False
+          version: latest
+        networks:
+        - name: "{{ host_network }}"
+          device_type: vmxnet3
+          type: static
+          ip: "{{ ipaddr }}"
+          netmask: "{{ netmask }}"
+          gateway: "{{ gateway }}"
+          dns_servers:
+            - 177.72.160.73
+            - 177.72.160.74
+        wait_for_ip_address: yes
+        wait_for_ip_address_timeout: 300
+      delegate_to: localhost
+      register: deploy
