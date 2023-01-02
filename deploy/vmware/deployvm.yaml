@@ -1,18 +1,13 @@
 ---
-- name: AWX Deploy VM OS Host
+- name: AWX Deploy VM & NetBox
   hosts: localhost
   connection: local
   collections:
   - netbox.netbox
   gather_facts: no
   tasks:
-  # query a list of devices
-  - name: Obtain list of devices from NetBox
-    debug:
-      msg: >
-        "Device {{ item.value.display_name }} (ID: {{ item.key }}) was
-         manufactured by {{ item.value.device_type.manufacturer.name }}"
-    loop: "{{ query('netbox.netbox.nb_lookup', 'devices',
-                    api_endpoint='https://ipam.getcard.com.br/',
-                    api_filter='role=management tag=Lenovo'),
-                    token='3e684fc527174c0a5b22a212aad849919e320881') }}"
+  - name: "GET SITES WITH NB_QUERY"
+    set_fact:
+      sites: "{{ query('netbox.netbox.nb_lookup', 'sites', api_endpoint='https://ipam.getcard.com.br', validate_certs=False, token='3e684fc527174c0a5b22a212aad849919e320881') }}"
+  - debug:
+      msg: "{{ sites | json_query('[*].value.name') }}"
