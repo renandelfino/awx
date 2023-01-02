@@ -4,38 +4,13 @@
   connection: local
   gather_facts: no
   tasks:
-
-    - name: Create a virtual machine from a template
-      vmware_guest:
-        hostname: "{{ vcsa_hostname }}"
-        username: user@user.domain
-        esxi_hostname: "{{ esxi_hostname }}"
-        password: "{{ pwd }}"
-        datacenter: mydc
-        validate_certs: no
-        folder: "{{ vcsa_folder }}"
-        name: "{{ host_hostname }}"
-        state: poweredon
-        template: "{{ host_template }}"
-        disk:
-        - size_gb: "{{ host_disk_size }}"
-          type: "{{ host_disk_type }}"
-          datastore: "{{ esxi_datastore }}"
-
-## Customise this portion if you want unique hardware configuration - default is small
-        hardware:
-          memory_mb: "{{ host_memory }}"
-          num_cpus: "{{ host_cpus }}"
-          num_cpu_cores_per_socket: "{{ host_cores }}"
-          scsi: paravirtual
-          memory_reservation_lock: False
-          mem_reservation: 2048
-          hotadd_cpu: True
-          hotremove_cpu: True
-          hotadd_memory: True
-          version: 14 # Hardware version of virtual machine
-        networks:
-        - name: "{{ host_network }}"
-        wait_for_ip_address: no
-      delegate_to: localhost
-      register: deploy
+  # query a list of devices
+  - name: Obtain list of devices from NetBox
+    debug:
+      msg: >
+        "Device {{ item.value.display_name }} (ID: {{ item.key }}) was
+         manufactured by {{ item.value.device_type.manufacturer.name }}"
+    loop: "{{ query('netbox.netbox.nb_lookup', 'devices',
+                    api_endpoint='https://ipam.getcard.com.br/',
+                    api_filter='role=management tag=Lenovo'),
+                    token='3e684fc527174c0a5b22a212aad849919e320881') }}"
