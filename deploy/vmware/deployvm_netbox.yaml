@@ -9,7 +9,6 @@
     - ./vars/labvars.yaml
   tasks:
 
-
     ### AlmaLinux Templates
     - name: Set NB Platform var dependent on template chosen
       set_fact:
@@ -84,13 +83,7 @@
         content: "{{ ip.ip_address.address }}"
         dest: "{{ ipaddrtxt }}"
 
-    - name: IP Task 2 - Copy prefix IP address to file
-      local_action:
-        module: copy
-        content: "{{ ip.ip_address.prefix }}"
-        dest: "{{ ipaddrprefixtxt }}"
-
-    - name: IP Task 3 - Replace /x netmask to decimal netmask
+    - name: IP Task 2 - Replace /x netmask to decimal netmask
       replace:
         path: "{{ ipaddrtxt }}"
         regexp: \/(22)
@@ -112,12 +105,28 @@
         regexp: \/(29)
         replace: '255.255.255.248'
 
-    - name: IP Task 3 - Create var from the ippaddr.txt file
+    - name: IP Task 3 - Lookup prefix
+      set_fact:
+        prefixes: "{{ query('netbox.netbox.nb_lookup', 'prefixes',
+                  api_endpoint='{{ nb_url }}',
+                  api_filter='prefix={{ ip.ip_address.prefix }}',
+                  validate_certs=False,
+                  token='{{ nb_token }}') }}"
+                  
+    - name: IP Task 3 - Lookup for gateway
+      set_fact:
+        gateway: "{{ query('netbox.netbox.nb_lookup', 'ip-addresses',
+                  api_endpoint='{{ nb_url }}',
+                  api_filter='parent=177.72.160.32/28 cf_Type=Gateway',
+                  validate_certs=False,
+                  token='{{ nb_token }}') }}"
+                  
+    - name: IP Task 4 - Create var from the ippaddr.txt file
       set_fact:
         ipaddr: "{{ lookup('file', '{{ ipaddrtxt }}') | regex_replace('\/\N+$','') }}"
         netmask: "{{ lookup('file', '{{ ipaddrtxt }}') | regex_replace('/^(.*[\\\/])/','') }}"
-        gateway: ""
-
+        gateway: "{{ gateway | json_query('[*].value.address') }}"
+        vlanid: "{{ prefixes | json_query('[*].value.vlan.vid') }}"
 
     - name: Create a virtual machine from a template
       vmware_guest:
