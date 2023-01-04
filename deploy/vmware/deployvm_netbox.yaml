@@ -126,7 +126,7 @@
         ipaddr: "{{ lookup('file', '{{ ipaddrtxt }}') | regex_replace('\/\N+$','') }}"
         netmask: "{{ lookup('file', '{{ ipaddrtxt }}') | regex_replace('/^(.*[\\\/])/','') }}"
         gateway: "{{ gateway | json_query('[*].value.address') }}"
-        vlanid: "{{ prefixes | json_query('[*].value.vlan.vid') }}"
+        vlan: "{{ prefixes | json_query('[*].value.vlan.name') }}"
 
     - name: Create a virtual machine from a template
       vmware_guest:
@@ -157,7 +157,7 @@
           hotadd_memory: False
           version: latest
         networks:
-        - name: "{{ host_network }}"
+        - name: "{{ vlan }}"
           device_type: vmxnet3
           type: static
           ip: "{{ ipaddr }}"
