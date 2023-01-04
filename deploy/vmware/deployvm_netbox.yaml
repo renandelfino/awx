@@ -57,9 +57,7 @@
         validate_certs: False
         data:
           name: "Network adapter 1"
-          untagged_vlan: "{{ host_network }}"
           virtual_machine: "{{ host_hostname }}"
-          mode: Access
           enabled: yes
         state: present
 
@@ -170,3 +168,17 @@
         wait_for_ip_address_timeout: 300
       delegate_to: localhost
       register: deploy
+      
+    - name: NB Task 4 - Create an Interface for NetBox VM entry
+      netbox_vm_interface:
+        netbox_url: "{{ nb_url }}"
+        netbox_token: "{{ nb_token }}"
+        validate_certs: False
+        data:
+          name: "Network adapter 1"
+          virtual_machine: "{{ host_hostname }}"
+          untagged_vlan: "{{ vlan }}"
+          mac_address: "{{ mac }}"
+          mode: Access
+          enabled: yes
+        state: present
