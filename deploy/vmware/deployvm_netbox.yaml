@@ -169,7 +169,7 @@
       delegate_to: localhost
       register: deploy
       
-    - name: NB Task 4 - Create an Interface for NetBox VM entry
+    - name: NB Task 4 - Modify an Interface for NetBox VM entry
       netbox_vm_interface:
         netbox_url: "{{ nb_url }}"
         netbox_token: "{{ nb_token }}"
@@ -178,7 +178,7 @@
           name: "Network adapter 1"
           virtual_machine: "{{ host_hostname }}"
           untagged_vlan: "{{ vlan }}"
-          mac_address: "{{ mac }}"
+          mac_address: "{{ {{ deploy.instance.networks.mac }} }}"
           mode: Access
           enabled: yes
         state: present
